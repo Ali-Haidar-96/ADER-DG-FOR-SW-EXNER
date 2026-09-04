@@ -1,0 +1,735 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.7cm]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{bm}
+\usepackage{microtype}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\dt}{\,\mathrm{d}t}
+\newcommand{\dx}{\,\mathrm{d}x}
+
+\title{ADER--DG Formulation for the Exner Model}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{The Exner model}
+
+We consider the one-dimensional Exner model. Let \(h=h(x,t)\) denote the
+water height, \(u=u(x,t)\) the depth-averaged water velocity,
+\(q=q(x,t)=h(x,t)u(x,t)\) the water discharge, and \(b=b(x,t)\) the evolving
+bottom topography. The free-surface elevation is
+\[
+    \eta=h+b,
+\]
+so that
+\[
+    h=\eta-b,
+    \qquad
+    u=\frac{q}{h}=\frac{q}{\eta-b}
+\]
+whenever \(h>0\).
+
+The sediment-transport discharge is described by the classical Grass law
+\[
+    q_b=\xi A u\lvert u\rvert^{m_g-1},
+    \qquad
+    \xi=\frac{1}{1-\rho_0},
+    \qquad
+    0\leq A\leq 1,
+    \qquad
+    m_g=3,
+\]
+where \(\rho_0\in[0,1)\) is the porosity of the sediment layer. The empirical
+coefficient \(A\) accounts for effects such as grain size and kinematic
+viscosity; larger values of \(A\) correspond to stronger fluid--sediment
+interaction.
+
+The water mass equation and the Exner equation are, respectively,
+\[
+    \partial_t h+\partial_x q=0,
+    \qquad
+    \partial_t b+\partial_x q_b=0.
+\]
+Since \(\eta=h+b\), adding these two equations gives
+\[
+    \partial_t\eta+\partial_x(q+q_b)=0.
+\]
+Moreover, the momentum balance can be written in the pre-balanced form
+\[
+    \partial_t q
+    +\partial_x\!\left(
+        qu+\frac{g}{2}\bigl(\eta^2-2\eta b\bigr)
+    \right)
+    =-g\eta\,\partial_x b.
+\]
+Consequently, using the variables \((\eta,q,b)\), the Exner system takes the
+compact form
+\begin{equation}
+    \partial_t\bm U(x,t)+\partial_x\bm F\bigl(\bm U(x,t)\bigr)
+    =\bm S(x,t),
+    \tag{6}
+    \label{eq:exner-system}
+\end{equation}
+where
+\[
+    \bm U=
+    \begin{pmatrix}
+        \eta\\ q\\ b
+    \end{pmatrix},
+    \qquad
+    \bm F(\bm U)=
+    \begin{pmatrix}
+        q+q_b\\[1mm]
+        qu+\dfrac{g}{2}\bigl(\eta^2-2\eta b\bigr)\\[1mm]
+        q_b
+    \end{pmatrix},
+    \qquad
+    \bm S=
+    \begin{pmatrix}
+        0\\[1mm]
+        -g\eta\,\partial_x b\\[1mm]
+        0
+    \end{pmatrix}.
+\]
+The third component \(q_b\) of the flux is required by the Exner equation
+\(\partial_t b+\partial_x q_b=0\).
+
+\section{ADER--DG formulation}
+
+Unlike a Runge--Kutta DG discretization, the ADER--DG method uses the ADER
+approach for the temporal evolution. The resulting method is one-step,
+one-stage, and fully discrete.
+
+\subsection{Mesh and approximation space}
+
+Let the spatial domain be partitioned into \(N\) cells
+\[
+    I_j=\bigl[x_{j-\frac12},x_{j+\frac12}\bigr],
+    \qquad j=1,\ldots,N,
+\]
+with cell centers and cell sizes
+\[
+    x_j=\frac12\left(x_{j-\frac12}+x_{j+\frac12}\right),
+    \qquad
+    \tau_j=x_{j+\frac12}-x_{j-\frac12},
+    \qquad
+    \tau=\max_{1\leq j\leq N}\tau_j.
+\]
+For the time interval \([t^n,t^{n+1}]\), define the local space--time control
+volume
+\[
+    \Omega_j^n=I_j\times[t^n,t^{n+1}].
+\]
+The discontinuous finite-element space of degree at most \(k\) is
+\[
+    V_h^k
+    =\left\{
+        v:\ v\big|_{I_j}\in\mathbb P^k(I_j),
+        \quad j=1,\ldots,N
+      \right\}.
+\]
+Thus, the DG approximation satisfies
+\(\bm U_h(\cdot,t)\in[V_h^k]^3\). Let
+\(\phi_\ell=\phi_\ell(x)\in V_h^k\), \(\ell=0,\ldots,k\), be an arbitrary
+time-independent test function.
+
+\subsection{Space--time weak formulation}
+
+Multiplying system~\eqref{eq:exner-system} by \(\phi_\ell\), integrating over
+\(\Omega_j^n\), and integrating the temporal and spatial derivatives by parts
+gives
+\begin{align}
+    &\int_{I_j}
+        \bm U_{h,j}^{n+1}(x)\,\phi_\ell(x)\dx
+    -
+    \int_{I_j}
+        \bm U_{h,j}^{n}(x)\,\phi_\ell(x)\dx     - \int_{t^n}^{t^{n+1}}\!\int_{I_j}
+        \bm F\bigl(\bm U_{\tau,j}(x,t)\bigr)
+        \partial_x\phi_\ell(x)\dx\dt
+    \notag\\
+    &\quad
+    +
+    \widehat{\bm F}_{j+\frac12}^{\,n}\,
+        \phi_\ell\bigl(x_{j+\frac12}^{-}\bigr)
+    -
+    \widehat{\bm F}_{j-\frac12}^{\,n}\,
+        \phi_\ell\bigl(x_{j-\frac12}^{+}\bigr) =
+    \int_{t^n}^{t^{n+1}}\!\int_{I_j}
+        \bm S_{\tau,j}(x,t)\,
+        \phi_\ell(x)\dx\dt .
+    \tag{7}
+    \label{eq:ader-dg-weak-form}
+\end{align}
+This vector identity holds for \(j=1,\ldots,N\). Here,
+\(\widehat{\bm F}_{j+\frac12}^{\,n}\) and
+\(\widehat{\bm F}_{j-\frac12}^{\,n}\) denote the time-integrated numerical
+flux contributions at the right and left interfaces of \(I_j\), respectively;
+they may be constructed from a consistent Lax--Friedrichs numerical flux. Their
+explicit computation is not considered at this stage.
+
+
+\subsection{Initialization and local space--time prediction}
+
+\paragraph{Step 1: Initialization.}
+
+Let \(x_j\) denote the center of the cell \(I_j\). The initial DG
+approximation in \(I_j\) is written as
+\begin{equation}
+    \mathbf{U}_{h,j}^{0}(x) = \mathbf{U}_{\tau,j}(x,0)
+    =
+    \sum_{k_x=0}^{k}
+    \widetilde{\mathbf{U}}_j(k_x,0)
+    (x-x_j)^{k_x},
+    \qquad x\in I_j.
+    \tag{9}
+\end{equation}
+The coefficients
+\(\widetilde{\mathbf{U}}(k_x,0)\), \(k_x=0,\ldots,k\), are obtained
+componentwise by the \(L^2\)-projection of the initial condition
+\(\mathbf{U}_0(x)=\mathbf{U}(x,0)\) onto
+\(\mathbb{P}^k(I_j)\). More precisely, they satisfy
+\[
+    \int_{I_j}
+    \left(
+        \mathbf{U}_{\tau}(x,0)-\mathbf{U}_0(x)
+    \right)
+    \phi_{\ell}(x)\,dx
+    =
+    \mathbf{0},
+    \qquad \ell=0,\ldots,k.
+\]
+
+\paragraph{Step 2: Differential transformation procedure.}
+
+Instead of employing the Cauchy--Kowalevski procedure used in
+traditional ADER methods, we adopt the differential transformation
+(DT) procedure. Suppose that the DG polynomial
+\(\mathbf{U}_{h,j}^n(x)\) is known in the cell \(I_j\). The local
+space--time approximation is expressed as the truncated Taylor
+expansion
+\begin{equation}
+    \mathbf{U}_{\tau}(x,t)
+    =
+    \sum_{k_t=0}^{k}
+    \sum_{k_x=0}^{k-k_t}
+    \widetilde{\mathbf{U}}(k_x,k_t)
+    (x-x_j)^{k_x}(t-t^n)^{k_t},
+    \qquad (x,t)\in\Omega_j^n,
+    \tag{10a}
+\end{equation}
+where
+\begin{equation}
+    \widetilde{\mathbf{U}}(k_x,k_t)
+    =
+    \frac{1}{k_x!\,k_t!}
+    \left.
+    \frac{\partial^{k_x+k_t}\mathbf{U}(x,t)}
+         {\partial x^{k_x}\partial t^{k_t}}
+    \right|_{(x,t)=(x_j,t^n)}
+    \tag{10b}
+\end{equation}
+denotes the differential transform of \(\mathbf{U}\) at
+\((x_j,t^n)\). The cell and time-step indices are omitted from the
+transformed coefficients for simplicity.
+
+The differential transformation rules needed in the present study
+are given below. For arbitrary functions \(v(x,t)\), \(z(x,t)\), and
+a constant \(c\), one has
+\begin{align*}
+    w(x,t)=c\,v(x,t)
+    \quad &\Longrightarrow \quad
+    \widetilde{w}(k_x,k_t)
+    =
+    c\,\widetilde{v}(k_x,k_t),                                      \\[0.3em]
+    w(x,t)=\partial_x v(x,t)
+    \quad &\Longrightarrow \quad
+    \widetilde{w}(k_x,k_t)
+    =
+    (k_x+1)\widetilde{v}(k_x+1,k_t),                                \\[0.3em]
+    w(x,t)=\partial_t v(x,t)
+    \quad &\Longrightarrow \quad
+    \widetilde{w}(k_x,k_t)
+    =
+    (k_t+1)\widetilde{v}(k_x,k_t+1),                                \\[0.3em]
+    w(x,t)=v(x,t)z(x,t)
+    \quad &\Longrightarrow \quad
+    \widetilde{w}(k_x,k_t)
+    =
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{v}(r,s)
+    \widetilde{z}(k_x-r,k_t-s).
+\end{align*}
+For \(w(x,t)=1/v(x,t)\), assuming
+\(\widetilde{v}(0,0)\neq 0\), the transformed coefficients are
+determined recursively by
+\[
+\left\{
+\begin{aligned}
+    \widetilde{w}(0,0)
+    &=
+    \frac{1}{\widetilde{v}(0,0)},                                   \\[0.4em]
+    \widetilde{w}(k_x,k_t)
+    &=
+    -\frac{1}{\widetilde{v}(0,0)}
+    \sum_{\substack{0\leq r\leq k_x,\;0\leq s\leq k_t\\r+s>0}}
+    \widetilde{v}(r,s)
+    \widetilde{w}(k_x-r,k_t-s),
+    \qquad (k_x,k_t)\neq(0,0).
+\end{aligned}
+\right.
+\]
+
+Applying the DT procedure componentwise to
+\[
+    \partial_t\mathbf{U}
+    +
+    \partial_x\mathbf{F}(\mathbf{U})
+    =
+    \mathbf{S}
+\]
+gives
+\begin{equation}
+    \widetilde{\mathbf{U}}(k_x,k_t+1)
+    =
+    -\frac{k_x+1}{k_t+1}
+    \widetilde{\mathbf{F}}(k_x+1,k_t)
+    +
+    \frac{1}{k_t+1}
+    \widetilde{\mathbf{S}}(k_x,k_t).
+    \tag{11}
+\end{equation}
+This recurrence is applied for
+\[
+    k_t=0,\ldots,k-1,
+    \qquad
+    k_x=0,\ldots,k-k_t-1.
+\]
+
+For the Exner system considered here, the transformed flux and source
+are decomposed as
+\begin{equation}
+\left\{
+\begin{aligned}
+    \widetilde{\mathbf{F}}(k_x+1,k_t)
+    &=
+    \begin{pmatrix}
+        \widetilde{Q}_1(k_x+1,k_t) \\[0.2em]
+        \widetilde{G}_1(k_x+1,k_t)
+        +\widetilde{G}_2(k_x+1,k_t)
+        -\widetilde{G}_3(k_x+1,k_t) \\[0.2em]
+        \widetilde{Q}_2(k_x+1,k_t)
+    \end{pmatrix},
+    \\[1em]
+    \widetilde{\mathbf{S}}(k_x,k_t)
+    &=
+    \begin{pmatrix}
+        0 \\[0.2em]
+        -\widetilde{G}_4(k_x,k_t) \\[0.2em]
+        0
+    \end{pmatrix}.
+\end{aligned}
+\right.
+\tag{12}
+\end{equation}
+
+We next express these intermediate quantities in terms of the
+transformed coefficients of the main variables
+\((\eta,q,b)\). Since
+\[
+    h=\eta-b,
+    \qquad
+    u=\frac{q}{h},
+\]
+we first define
+\[
+    \widetilde{h}(k_x,k_t)
+    =
+    \widetilde{\eta}(k_x,k_t)
+    -
+    \widetilde{b}(k_x,k_t).
+\]
+Let \(R=1/h\). Assuming \(\widetilde{h}(0,0)>0\), its transformed
+coefficients satisfy
+\[
+\left\{
+\begin{aligned}
+    \widetilde{R}(0,0)
+    &=
+    \frac{1}{\widetilde{h}(0,0)},                                  \\[0.4em]
+    \widetilde{R}(k_x,k_t)
+    &=
+    -\frac{1}{\widetilde{h}(0,0)}
+    \sum_{\substack{0\leq r\leq k_x,\;0\leq s\leq k_t\\r+s>0}}
+    \widetilde{h}(r,s)
+    \widetilde{R}(k_x-r,k_t-s).
+\end{aligned}
+\right.
+\]
+Consequently,
+\[
+    \widetilde{u}(k_x,k_t)
+    =
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{q}(r,s)
+    \widetilde{R}(k_x-r,k_t-s).
+\]
+
+Since \(m_g=3\), the Grass sediment transport law becomes
+\[
+    q_b=\xi A u|u|^2=\xi A u^3.
+\]
+Introducing
+\[
+    \widetilde{u^2}(k_x,k_t)
+    =
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{u}(r,s)
+    \widetilde{u}(k_x-r,k_t-s),
+\]
+the transformed sediment discharge is
+\begin{align*}
+    \widetilde{Q}_2(k_x,k_t)
+    &=
+    \widetilde{q_b}(k_x,k_t)                                      \\
+    &=
+    \xi A
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{u^2}(r,s)
+    \widetilde{u}(k_x-r,k_t-s).
+\end{align*}
+Therefore, the first flux component is
+\[
+    \widetilde{Q}_1(k_x,k_t)
+    =
+    \widetilde{q}(k_x,k_t)
+    +
+    \widetilde{Q}_2(k_x,k_t).
+\]
+
+The transformed coefficients associated with the momentum flux are
+\begin{align*}
+    \widetilde{G}_1(k_x,k_t)
+    &=
+    \widetilde{(qu)}(k_x,k_t)                                     \\
+    &=
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{q}(r,s)
+    \widetilde{u}(k_x-r,k_t-s),                                   \\[0.6em]
+    \widetilde{G}_2(k_x,k_t)
+    &=
+    \frac{g}{2}\widetilde{(\eta^2)}(k_x,k_t)                       \\
+    &=
+    \frac{g}{2}
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{\eta}(r,s)
+    \widetilde{\eta}(k_x-r,k_t-s),                                \\[0.6em]
+    \widetilde{G}_3(k_x,k_t)
+    &=
+    g\,\widetilde{(\eta b)}(k_x,k_t)                              \\
+    &=
+    g
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{\eta}(r,s)
+    \widetilde{b}(k_x-r,k_t-s).
+\end{align*}
+
+Finally, since the topography \(b=b(x,t)\) evolves in time, we have
+\[
+    \widetilde{b_x}(k_x,k_t)
+    =
+    (k_x+1)\widetilde{b}(k_x+1,k_t).
+\]
+It follows that
+\begin{align*}
+    \widetilde{G}_4(k_x,k_t)
+    &=
+    g\,\widetilde{(\eta b_x)}(k_x,k_t)                             \\
+    &=
+    g
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    \widetilde{\eta}(r,s)
+    \widetilde{b_x}(k_x-r,k_t-s)                                  \\
+    &=
+    g
+    \sum_{r=0}^{k_x}\sum_{s=0}^{k_t}
+    (k_x-r+1)
+    \widetilde{\eta}(r,s)
+    \widetilde{b}(k_x-r+1,k_t-s).
+\end{align*}
+
+
+Starting from the spatial expansion coefficients \(\widetilde{\mathbf{U}}(k_x,0)\), \(k_x=0,\ldots,k\), the recurrence relation~(11), together with the transformed expressions in~(12), is applied successively in increasing order of \(k_t\). This procedure determines all the space--time expansion coefficients
+
+\[
+    \widetilde{\mathbf{U}}(k_x,k_t),\qquad
+    \widetilde{\mathbf{F}}(k_x,k_t),\qquad
+    \widetilde{\mathbf{S}}(k_x,k_t),
+    \qquad
+    k_t=0,\ldots,k,\quad
+    k_x=0,\ldots,k-k_t.
+\]
+
+\begin{align*}
+    \mathbf{U}_{\tau,j}(x,t)
+    &= \sum_{k_t=0}^{k} \sum_{k_x=0}^{k-k_t}
+    \widetilde{\mathbf{U}}_j(k_x,k_t)
+    (x-x_j)^{k_x}(t-t^n)^{k_t}, \\
+    \mathbf{F}_{\tau,j}(x,t)
+    &= \sum_{k_t=0}^{k} \sum_{k_x=0}^{k-k_t}
+    \widetilde{\mathbf{F}}_j(k_x,k_t)
+    (x-x_j)^{k_x}(t-t^n)^{k_t}, \\
+    \mathbf{S}_{\tau,j}(x,t)
+    &= \sum_{k_t=0}^{k} \sum_{k_x=0}^{k-k_t}
+    \widetilde{\mathbf{S}}_j(k_x,k_t)
+    (x-x_j)^{k_x}(t-t^n)^{k_t}.
+\end{align*}
+for \((x,t)\in\Omega_j^n\), \(j=1,\ldots,N\). In this manner, the local space--time evolution is obtained independently within each space--time control volume \(\Omega_j^n\).
+ 
+\paragraph{Remark.}
+The source coefficients \(\widetilde{\mathbf{S}}(k_x,k_t)\) are required  for
+\(k_t=0,\ldots,k - 1,\quad k_x=0,\ldots,k-k_t-1\), which is precisely the range needed in recurrence~(11).
+
+
+\subsection{Implementation steps of the ADER--DG method}
+
+For clarity, the implementation of the proposed ADER--DG method over one
+time step \(t^n\longrightarrow t^{n+1}\) can be summarized as follows.
+
+\begin{enumerate}
+
+    \item \textbf{Initialization.}
+    
+    At \(t=0\), compute the initial DG polynomial in every cell
+    \(I_j\), \(j=1,\ldots,N\), by the componentwise \(L^2\)-projection
+    of the initial data \(\mathbf{U}_0(x)=\mathbf{U}(x,0)\) onto
+    \([\mathbb{P}^k(I_j)]^3\):
+    \[
+        \mathbf{U}_{h,j}^{0}(x)
+        =
+        \sum_{k_x=0}^{k}
+        \widetilde{\mathbf{U}}_j(k_x,0)
+        (x-x_j)^{k_x}.
+    \]
+    At a general time \(t^n\), the spatial coefficients
+    \(\widetilde{\mathbf{U}}_j(k_x,0)\) are obtained from the known DG
+    polynomial \(\mathbf{U}_{h,j}^{n}(x)\).
+
+    \item \textbf{Local space--time prediction.}
+    
+    Starting from the coefficients
+    \(\widetilde{\mathbf{U}}_j(k_x,0)\), apply the recurrence
+    relation~\((11)\), together with the transformed flux and source
+    expressions~\((12)\), successively in increasing order of \(k_t\).
+    This gives
+    \[
+        \widetilde{\mathbf{U}}_j(k_x,k_t),\qquad
+        \widetilde{\mathbf{F}}_j(k_x,k_t),\qquad
+        \widetilde{\mathbf{S}}_j(k_x,k_t),
+    \]
+    for
+    \[
+        k_t=0,\ldots,k,
+        \qquad
+        k_x=0,\ldots,k-k_t.
+    \]
+    The corresponding local space--time predictors
+    \(\mathbf{U}_{\tau,j}\), \(\mathbf{F}_{\tau,j}\), and
+    \(\mathbf{S}_{\tau,j}\) are then reconstructed over
+    \(\Omega_j^n=I_j\times[t^n,t^{n+1}]\). This predictor step is
+    performed independently in every cell.
+
+    \item \textbf{Evaluation of the interface fluxes.}
+    
+    At each interface \(x_{j+\frac12}\), evaluate the left and right
+    predictor traces
+    \[
+        \mathbf{U}_{\tau,j}
+        \bigl(x_{j+\frac12}^{-},t\bigr),
+        \qquad
+        \mathbf{U}_{\tau,j+1}
+        \bigl(x_{j+\frac12}^{+},t\bigr),
+    \]
+    and use them to construct a consistent well-balanced numerical
+    flux
+    \[
+        \mathbf{F}^{*}_{j+\frac12}(t)
+        =
+        \mathbf{F}^{*}\!\left(
+            \mathbf{U}_{\tau,j}(x_{j+\frac12}^{-},t),
+            \mathbf{U}_{\tau,j+1}(x_{j+\frac12}^{+},t)
+        \right).
+    \]
+    Its time-integrated contribution is
+    \[
+        \widehat{\mathbf{F}}_{j+\frac12}^{\,n}
+        =
+        \int_{t^n}^{t^{n+1}}
+        \mathbf{F}^{*}_{j+\frac12}(t)\,dt.
+    \]
+    The well-balanced interface flux must be coupled with a compatible
+    discretization of the source term so that the targeted equilibrium
+    state is preserved exactly.
+
+    \item \textbf{Evaluation of the space--time integrals.}
+    
+    Evaluate all the volume, source, and interface integrals appearing
+    in the weak formulation~\((7)\). In practice, these integrals are
+    computed using sufficiently accurate Gaussian quadrature rules in
+    both space and time. The quadrature order must be selected so that
+    the polynomial terms involved in the ADER--DG discretization are
+    integrated with the required accuracy.
+
+    \item \textbf{One-stage DG update.}
+    
+    For each test function \(\phi_\ell\), \(\ell=0,\ldots,k\), compute
+    the DG solution at \(t^{n+1}\) from the one-stage formula
+    \[
+    \begin{aligned}
+        \int_{I_j}
+        \mathbf{U}_{h,j}^{n+1}(x)\phi_\ell(x)\,dx
+        &=
+        \int_{I_j}
+        \mathbf{U}_{h,j}^{n}(x)\phi_\ell(x)\,dx
+        +
+        \int_{t^n}^{t^{n+1}}\!\int_{I_j}
+        \mathbf{F}_{\tau,j}(x,t)
+        \partial_x\phi_\ell(x)\,dx\,dt
+        \\
+        &\quad
+        -
+        \widehat{\mathbf{F}}_{j+\frac12}^{\,n}
+        \phi_\ell(x_{j+\frac12}^{-})
+        +
+        \widehat{\mathbf{F}}_{j-\frac12}^{\,n}
+        \phi_\ell(x_{j-\frac12}^{+})
+        \\
+        &\quad
+        +
+        \int_{t^n}^{t^{n+1}}\!\int_{I_j}
+        \mathbf{S}_{\tau,j}(x,t)
+        \phi_\ell(x)\,dx\,dt .
+    \end{aligned}
+    \]
+    The degrees of freedom of
+    \(\mathbf{U}_{h,j}^{n+1}\) are obtained by solving the resulting
+    local mass-matrix system.
+
+    \item \textbf{Advance to the next time step.}
+    
+    Set \(n\leftarrow n+1\), determine the next time-step size according
+    to the appropriate CFL restriction, and repeat Steps~2--5 until the
+    final time is reached.
+
+\end{enumerate}
+
+\paragraph{Remark on nonlinear stabilization.}
+A monotone interface flux, such as the local Lax--Friedrichs or Rusanov
+flux, provides numerical dissipation at cell interfaces, but it does not,
+by itself, prevent spurious oscillations in the higher-order DG polynomial
+near shocks or strong discontinuities. Therefore, for shock-dominated
+solutions, a TVB, WENO, or another suitable nonlinear limiter should be
+used. The limiter is applied to the updated spatial DG polynomial
+\(\mathbf{U}_{h,j}^{n+1}\), preferably only in cells detected as troubled,
+and not directly to the local space--time predictor
+\(\mathbf{U}_{\tau,j}(x,t)\). The limiting procedure must preserve the
+cell average and should be designed consistently with the well-balanced
+property. As an alternative
+for very strong shocks, a troubled-cell ADER--DG method with a robust
+first-order finite-volume numerical fluxes where needed may be employed.
+
+
+\subsection{DG Approximation and Local Space--Time Predictor}
+
+Throughout the following presentation, we distinguish between the spatial
+DG approximation and the local space--time predictor. At the discrete time
+$t^n$, the approximate DG solution is denoted by $\mathbf{U}_h^n(x)$, whose
+restriction
+\[
+    \mathbf{U}_{h,j}^n(x)
+    =
+    \left.\mathbf{U}_h^n(x)\right|_{I_j}
+\]
+is a polynomial of degree at most $k$ in the spatial variable.
+
+Starting from $\mathbf{U}_{h,j}^n$, the differential transformation
+procedure constructs, independently in each cell $I_j$, a local
+space--time predictor $\mathbf{U}_{\tau,j}(x,t)$ over
+$I_j\times[t^n,t^{n+1}]$. This predictor is initialized by the known DG
+polynomial:
+\begin{equation}
+    \mathbf{U}_{\tau,j}(x,t^n)
+    =
+    \mathbf{U}_{h,j}^n(x),
+    \qquad x\in I_j.
+    \label{eq:predictor-initialization}
+\end{equation}
+Indeed, the local predictor is written as
+\[
+    \mathbf{U}_{\tau,j}(x,t)
+    =
+    \sum_{k_t=0}^{k}
+    \sum_{k_x=0}^{k-k_t}
+    \widetilde{\mathbf{U}}_j(k_x,k_t)
+    (x-x_j)^{k_x}(t-t^n)^{k_t}.
+\]
+Evaluating this expression at $t=t^n$ eliminates all terms with
+$k_t\geq 1$ and gives
+\[
+    \mathbf{U}_{\tau,j}(x,t^n)
+    =
+    \sum_{k_x=0}^{k}
+    \widetilde{\mathbf{U}}_j(k_x,0)(x-x_j)^{k_x}
+    =
+    \mathbf{U}_{h,j}^n(x).
+\]
+Therefore, the coefficients
+$\widetilde{\mathbf{U}}_j(k_x,0)$ are precisely the coefficients of the
+known DG polynomial $\mathbf{U}_{h,j}^n$ expressed in the monomial basis
+centered at $x_j$.
+
+At the initial time $t^0=0$, these coefficients are obtained from the
+$L^2$-projection of the prescribed initial condition $\mathbf{U}_0$ onto
+$\mathbb{P}^k(I_j)$. At every subsequent time $t^n$, $n\geq 1$, they are
+obtained directly from the previously computed DG polynomial
+$\mathbf{U}_{h,j}^n$; thus, no new projection of the initial condition is
+performed.
+
+The predictor $\mathbf{U}_{\tau,j}$ is an auxiliary polynomial used to
+evaluate the space--time volume integrals, source terms, and time-dependent
+interface fluxes appearing in the ADER--DG formulation. Since it is
+constructed locally and independently in each cell, it does not yet
+include the numerical-flux corrections associated with interactions
+between neighboring cells. Consequently, although
+\[
+    \mathbf{U}_{\tau,j}(x,t^n)
+    =
+    \mathbf{U}_{h,j}^n(x),
+\]
+one generally has
+\[
+    \mathbf{U}_{\tau,j}(x,t^{n+1})
+    \neq
+    \mathbf{U}_{h,j}^{n+1}(x).
+\]
+The updated DG solution $\mathbf{U}_h^{n+1}$ is obtained only after applying
+the globally coupled DG correction step, in which the local predictors are
+used to compute the volume contributions and numerical fluxes. The
+ADER--DG evolution can therefore be summarized as
+\[
+    \mathbf{U}_h^n
+    \;\longrightarrow\;
+    \mathbf{U}_{\tau}
+    \;\longrightarrow\;
+    \mathbf{U}_h^{n+1},
+\]
+where the first arrow represents the element-local space--time prediction
+and the second represents the globally coupled DG update.
+
+\end{document}
