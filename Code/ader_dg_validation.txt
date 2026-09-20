@@ -1,0 +1,35 @@
+ADER--DG low-Froude shallow-water--Exner validation
+===================================================
+Polynomial degree k             : 2
+Cells                           : 200
+CFL (DG)                        : 0.18
+Fr                              : 5.644045512322e-02
+1/Fr^2                          : 3.139200000000e+02
+Final time [s]                  : 2.000000000000e+00
+Time steps                      : 490
+dt min/mean/max [s]             : 4.234579e-04 / 4.081633e-03 / 4.090332e-03
+Wall time [s]                   : 5.251
+Total troubled-cell limit events: 5765
+Total positivity-scale events   : 0
+DT recurrence max residual      : 0.000000e+00
+Lake-at-rest residual eta       : 0.000000e+00
+Lake-at-rest residual q         : 5.684342e-12
+Lake-at-rest residual b         : 0.000000e+00
+Final h range [m]               : 1.47699609 .. 2.00036997
+Final eta range [m]             : 4.45649390 .. 5.00018765
+Final q range [m^2/s]           : 0.49921606 .. 4.34478097
+Final b range [m]               : 2.83374368 .. 3.00000018
+
+P0 regression against the FV reference (same CFL=0.9):
+  P0_steps                    : 98
+  P0_Linf_eta_vs_FV_m         : 3.55271368e-15
+  P0_Linf_q_vs_FV_m2_s        : 1.59872116e-14
+  P0_Linf_b_vs_FV_m           : 1.33226763e-15
+
+Comparison of ADER-DG P2 cell averages with the robust FV reference:
+  L1_eta_vs_FV_m              : 1.30123537e-02
+  L1_q_vs_FV_m2_s             : 5.05580888e-02
+  L1_b_vs_FV_m                : 7.96574335e-04
+  Linf_eta_vs_FV_m            : 8.45897382e-02
+  Linf_q_vs_FV_m2_s           : 3.03903904e-01
+  Linf_b_vs_FV_m              : 3.19014259e-02
