@@ -1,0 +1,237 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.6cm]{geometry}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\Fr}{\mathrm{Fr}}
+
+\title{A Pure ADER--DG Method for the Low-Froude Shallow-Water--Exner System}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We consider a one-dimensional ADER--DG discretization of the shallow-water--Exner system in low-Froude scaling. The method is formulated in free-surface, discharge, and total-bed variables and uses a local space--time predictor obtained by differential transformation, followed by a one-stage DG correction. The present implementation is unified so that the same numerical core can be applied to a discontinuous Riemann problem and to a smooth moving-sediment benchmark from the literature. This note records the essential formulation and the two benchmark configurations currently implemented.
+\end{abstract}
+
+\section{Low-Froude shallow-water--Exner model}
+
+Let $h$ be the water depth, $u$ the depth-averaged velocity, $q=hu$ the discharge, and $B$ the \emph{total bed elevation}. The free surface is
+\[
+    \eta=h+B,
+    \qquad h=\eta-B,
+    \qquad u=\frac{q}{h}.
+\]
+The sediment transport is described by the Grass law
+\begin{equation}
+    q_b=\xi A\,u|u|^{m_g-1},
+    \qquad
+    \xi=\frac{1}{1-\rho_0}.
+    \label{eq:grass}
+\end{equation}
+After nondimensionalization with characteristic scales $H_{\mathrm{ref}}$, $U_{\mathrm{ref}}$, and $L_{\mathrm{ref}}$, the Froude number is
+\[
+    \Fr=\frac{U_{\mathrm{ref}}}{\sqrt{gH_{\mathrm{ref}}}}.
+\]
+Using the variables
+\[
+    \bm U=(\eta,q,B)^T,
+\]
+the system is written in the pre-balanced form
+\begin{equation}
+    \partial_t\bm U+\partial_x\bm F(\bm U)=\bm S(\bm U),
+    \label{eq:system}
+\end{equation}
+with
+\begin{equation}
+    \bm F(\bm U)=
+    \begin{pmatrix}
+        q+q_b\\[1mm]
+        qu+\dfrac{1}{2\Fr^2}\left(\eta^2-2\eta B\right)\\[1mm]
+        q_b
+    \end{pmatrix},
+    \qquad
+    \bm S(\bm U)=
+    \begin{pmatrix}
+        0\\[1mm]
+        -\dfrac{\eta}{\Fr^2}\,\partial_x B\\[1mm]
+        0
+    \end{pmatrix}.
+    \label{eq:flux-source}
+\end{equation}
+For the smooth benchmark below, $B=b_{\mathrm{fixed}}+z_b$, where $b_{\mathrm{fixed}}$ is constant and $z_b$ is the evolving sediment layer. Since $\partial_t b_{\mathrm{fixed}}=0$, the same third equation in~\eqref{eq:system} applies to $B$.
+
+\section{ADER--DG discretization}
+
+The domain is divided into cells $I_j=[x_{j-1/2},x_{j+1/2}]$. In the present implementation we use a polynomial degree $k=2$ and represent the spatial DG solution in a Legendre modal basis. Over one time step $[t^n,t^{n+1}]$, a local space--time predictor is constructed independently in each cell as
+\begin{equation}
+    \bm U_\tau(x,t)
+    =
+    \sum_{k_t=0}^{k}\sum_{k_x=0}^{k-k_t}
+    \widetilde{\bm U}(k_x,k_t)
+    (x-x_j)^{k_x}(t-t^n)^{k_t}.
+    \label{eq:predictor}
+\end{equation}
+The differential-transform coefficients satisfy
+\begin{equation}
+    \widetilde{\bm U}(k_x,k_t+1)
+    =
+    -\frac{k_x+1}{k_t+1}\widetilde{\bm F}(k_x+1,k_t)
+    +\frac{1}{k_t+1}\widetilde{\bm S}(k_x,k_t),
+    \label{eq:dt-recurrence}
+\end{equation}
+for $k_t=0,\ldots,k-1$ and $k_x=0,\ldots,k-k_t-1$. The nonlinear quantities $h^{-1}$, $u=q/h$, $u^3$, $qu$, $\eta^2$, $\eta B$, and $\eta B_x$ are evaluated by the corresponding differential-transform product and inverse recurrences.
+
+The predictor is inserted into the space--time DG weak form. For each spatial test function $\phi_\ell$,
+\begin{align}
+    \int_{I_j}\bm U_h^{n+1}\phi_\ell\dd x
+    &=
+    \int_{I_j}\bm U_h^{n}\phi_\ell\dd x
+    +\int_{t^n}^{t^{n+1}}\!\int_{I_j}
+      \bm F(\bm U_\tau)\,\partial_x\phi_\ell\dd x\dd t
+    \notag\\
+    &\quad
+    -\widehat{\bm F}_{j+1/2}^{\,n}\phi_\ell(x_{j+1/2}^{-})
+    +\widehat{\bm F}_{j-1/2}^{\,n}\phi_\ell(x_{j-1/2}^{+})
+    \notag\\
+    &\quad
+    +\int_{t^n}^{t^{n+1}}\!\int_{I_j}
+      \bm S(\bm U_\tau)\phi_\ell\dd x\dd t.
+    \label{eq:dg-update}
+\end{align}
+Space and time integrals are evaluated by four-point Gauss--Legendre quadrature. At interfaces, the implementation uses hydrostatic reconstruction, a local Rusanov flux for the hydrodynamic variables, and an upwind Grass sediment flux. The time step is chosen adaptively as
+\begin{equation}
+    \Delta t
+    =\mathrm{CFL}\,
+      \frac{\Delta x}
+      {\max_j\left(|u_j|+\sqrt{h_j}/\Fr\right)}.
+    \label{eq:cfl}
+\end{equation}
+
+The unified code contains two stabilization modes. The \texttt{pure} mode disables the TVD/TVB troubled-cell limiter and the finite-volume fallback. The \texttt{monotone} mode uses strict modified minmod limiting and a local $P^0$ finite-volume fallback near strong bed discontinuities. The numerical experiments described below use the \texttt{pure} mode. A positivity scaling safeguard is retained in both modes; it was inactive in the verified runs reported here.
+
+\section{Numerical benchmarks}
+
+The same ADER--DG core is used for both tests. Only the benchmark data, nondimensional reference scales, computational domain, final time, and CFL value are changed by the unified implementation.
+
+\subsection{Benchmark 1: discontinuous movable-bed Riemann problem}
+
+The first test is the movable-bed Riemann problem used by Siviglia, Vanzo, and Toro~\cite{siviglia2022}. The initial discontinuity is located at $x=0$, with
+\begin{equation}
+    (h,q,B)_L=(2,\,0.5,\,3),
+    \qquad
+    (h,q,B)_R=(2,\,4.34297,\,2.84751).
+    \label{eq:riemann-data}
+\end{equation}
+The reference test uses the Grass closure $q_b=0.01u^3$, $m_g=3$, a domain of length $30$ m, $200$ cells, and final time $T=2$ s. Figure~5 of~\cite{siviglia2022} provides the second-order reference comparison with the exact Riemann solution.
+
+In the unified code we retain exactly the effective sediment coefficient $0.01$. Since our common notation is $q_b=\xi A u^3$, we set $\rho_0=0.4$ and choose $A=(1-\rho_0)\,0.01$, so that the effective coefficient is $\xi A=0.01$. This is only a reparameterization of the published closure. The current pure ADER--DG settings are summarized in Table~\ref{tab:benchmark1}.
+
+\begin{table}[h]
+\centering
+\caption{Settings used in the unified code for Benchmark 1.}
+\label{tab:benchmark1}
+\begin{tabular}{ll}
+\toprule
+Physical domain & $[-15,15]$ m \\
+Elements & $N=200$ \\
+Polynomial degree & $k=2$ \\
+Final time & $T=2$ s \\
+$H_{\mathrm{ref}}$, $U_{\mathrm{ref}}$, $L_{\mathrm{ref}}$ & $2$ m, $0.25$ m/s, $30$ m \\
+Froude number & $\Fr\simeq 0.05644$ \\
+Grass law & $q_b=0.01u^3$ \\
+Pure ADER--DG CFL & $0.05$ \\
+Boundary treatment & transmissive \\
+Plotted variables & $h$, $q$, $B$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The CFL used here is method-dependent and is smaller than the value $0.9$ used in the finite-volume reference computation of~\cite{siviglia2022}.
+
+\subsection{Benchmark 2: smooth non-flat sediment layer}
+
+The second test is Test 4.1.3 of Fernandez-Nieto, Garres-Diaz, Macca, and Russo~\cite{fernandeznieto2025}. The physical comparison interval is $[-200,200]$ m. The fixed bottom is
+\[
+    b_{\mathrm{fixed}}=0.01\ \mathrm{m},
+\]
+and the evolving sediment layer is initialized by
+\begin{equation}
+    z_b(x,0)=0.1+2\exp\!\left(-\frac{x^8}{10^{14}}\right).
+    \label{eq:smooth-bed}
+\end{equation}
+The remaining initial data are
+\begin{equation}
+    \eta(x,0)=10\ \mathrm{m},
+    \qquad
+    q(x,0)=10\ \mathrm{m^2/s}.
+    \label{eq:smooth-data}
+\end{equation}
+The total bed stored by the unified solver is therefore
+\[
+    B(x,t)=b_{\mathrm{fixed}}+z_b(x,t).
+\]
+The reference model uses $A_g=0.1$, $m_g=3$, $\rho_0=0.2$, and the paper writes the closure as $q_b=\xi A_g u^3$. In the unified code we therefore set $A=0.1$, and hence
+\[
+    \xi=\frac{1}{1-0.2}=1.25,
+    \qquad
+    q_b=0.125u^3.
+\]
+Figure~8 of~\cite{fernandeznieto2025} shows the initial and final solutions for $\eta$, $z_b$, $q$, and $u$ at $T=200$ s using a 200-cell physical mesh. The same reference also introduces absorbing layers of width $45$ m on both sides of the interval $[-200,200]$ m to damp outgoing surface waves.
+
+The current default settings of the unified code are listed in Table~\ref{tab:benchmark2}. The default uses 100 cells over the $400$ m physical interval for a faster verification run; the code can be run with 200 physical cells to match the nominal resolution of Figure~8.
+
+\begin{table}[h]
+\centering
+\caption{Settings used in the unified code for Benchmark 2.}
+\label{tab:benchmark2}
+\begin{tabular}{ll}
+\toprule
+Physical comparison interval & $[-200,200]$ m \\
+Absorbing layers & $45$ m on each side \\
+Computational domain & $[-245,245]$ m \\
+Default physical cells & $100$ \\
+Total elements with sponge layers & $122$ \\
+Polynomial degree & $k=2$ \\
+Final time & $T=200$ s \\
+$H_{\mathrm{ref}}$, $U_{\mathrm{ref}}$, $L_{\mathrm{ref}}$ & $10$ m, $1$ m/s, $400$ m \\
+Froude number & $\Fr\simeq 0.10096$ \\
+Grass parameters & $A=0.1$, $m_g=3$, $\rho_0=0.2$ \\
+Effective Grass law & $q_b=0.125u^3$ \\
+Pure ADER--DG CFL & $0.12$ \\
+Plotted variables & $\eta$, $q$, $z_b=B-b_{\mathrm{fixed}}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The reference semi-implicit method uses a much larger CFL (approximately $3.4$), whereas the present explicit ADER--DG discretization uses CFL $0.12$. This difference concerns the time discretization and does not change the physical benchmark data.
+
+\section{Current scope}
+
+The present implementation provides a single $P^2$ ADER--DG framework for two complementary morphodynamic tests: a discontinuous Riemann problem and a smooth long-time sediment-evolution problem. The current article draft focuses only on the formulation and benchmark definitions. A systematic accuracy study, comparison with reference solutions, low-Froude asymptotic analysis, and detailed study of nonlinear stabilization will be added in subsequent versions.
+
+\begin{thebibliography}{9}
+
+\bibitem{siviglia2022}
+A.~Siviglia, D.~Vanzo, and E.~F.~Toro,
+\newblock A splitting scheme for the coupled Saint-Venant--Exner model,
+\newblock \emph{Advances in Water Resources}, 159 (2022), 104062.
+\newblock \href{https://doi.org/10.1016/j.advwatres.2021.104062}{doi:10.1016/j.advwatres.2021.104062}.
+
+\bibitem{fernandeznieto2025}
+E.~D.~Fernandez-Nieto, J.~Garres-Diaz, E.~Macca, and G.~Russo,
+\newblock A Third-Order Finite Volume Semi-Implicit Method for the Shallow Water--Exner Model,
+\newblock \emph{Journal of Scientific Computing}, 105 (2025), Article 66.
+\newblock \href{https://doi.org/10.1007/s10915-025-03093-8}{doi:10.1007/s10915-025-03093-8}.
+
+\end{thebibliography}
+
+\end{document}
